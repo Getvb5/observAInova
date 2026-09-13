@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: pci
+      POSTGRES_USER: pci
+      POSTGRES_PASSWORD: pci
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init/001-vector.sql:/docker-entrypoint-initdb.d/001-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pci -d pci"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pci}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-in-development}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: python:3.12-slim
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir -e . &&
+      uvicorn pci.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pci:pci@postgres:5432/pci}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pci-objects}
+      OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-pci}
+      OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-in-development}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../apps/api:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    image: python:3.12-slim
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir -e . &&
+      dramatiq --processes 1 --threads 1 pci.worker"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pci:pci@postgres:5432/pci}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pci-objects}
+      OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-pci}
+      OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-in-development}
+    volumes:
+      - ../apps/api:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "from pci.worker import broker; broker.client.ping()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  minio-data:
+  postgres-data:

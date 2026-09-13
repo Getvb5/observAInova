@@ -1,0 +1,31 @@
+[
+  {
+    "source_identifier": "oai:sample:1",
+    "payload": {
+      "title": "Tecnologia social para saneamento rural",
+      "abstract": "Soluções comunitárias de baixo custo para ampliar o saneamento rural.",
+      "authors": ["Ana Silva", "João Santos"],
+      "institution": "Universidade Federal de Pernambuco",
+      "date": "2025-03-10",
+      "type": "social_technology",
+      "identifiers": ["https://repositorio.example/oai:sample:1"],
+      "rights": "CC BY 4.0"
+    },
+    "source_url": "https://repositorio.example/items/oai:sample:1",
+    "rights": "CC BY 4.0"
+  },
+  {
+    "source_identifier": "oai:sample:2",
+    "payload": {
+      "title": "Diagnóstico participativo da agricultura familiar",
+      "authors": ["Maria Oliveira"],
+      "institution": "Instituto Federal de Pernambuco",
+      "date": "2024-11-02",
+      "type": "technical_report",
+      "identifiers": ["https://repositorio.example/oai:sample:2"],
+      "rights": "Uso institucional autorizado"
+    },
+    "source_url": "https://repositorio.example/items/oai:sample:2",
+    "rights": "Uso institucional autorizado"
+  }
+]
