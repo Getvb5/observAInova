@@ -39,6 +39,8 @@ def normalize_record(raw: HarvestedRecord) -> NormalizedRecord:
         payload.get("institution", payload.get("organization")), transformations
     )
     keywords = _keywords(payload.get("keywords", payload.get("subject")), transformations)
+    academic_program = _academic_program(payload, transformations)
+    knowledge_areas = _knowledge_areas(payload, transformations)
     publishers = _publishers(payload.get("publisher"), transformations)
     identifiers = _identifiers(payload, transformations)
 
@@ -76,6 +78,8 @@ def normalize_record(raw: HarvestedRecord) -> NormalizedRecord:
             ("authors", authors),
             ("organizations", organizations),
             ("keywords", keywords),
+            ("academic_program", academic_program),
+            ("knowledge_areas", knowledge_areas),
             ("source_url", source_url),
             ("rights", raw.rights),
         )
@@ -98,6 +102,8 @@ def normalize_record(raw: HarvestedRecord) -> NormalizedRecord:
         authors=authors,
         organizations=organizations,
         keywords=keywords,
+        academic_program=academic_program,
+        knowledge_areas=knowledge_areas,
         publishers=publishers,
         source_url=source_url,
         rights=raw.rights,
@@ -313,6 +319,34 @@ def _organizations(value: object, transformations: list[Transformation]) -> tupl
 
 def _keywords(value: object, transformations: list[Transformation]) -> tuple[str, ...]:
     return _normalized_string_tuple(value, "keywords", transformations)
+
+
+def _academic_program(
+    payload: dict[str, Any], transformations: list[Transformation]
+) -> str | None:
+    value = next(
+        (
+            payload[field]
+            for field in ("program", "academic_program", "degree_program")
+            if field in payload
+        ),
+        None,
+    )
+    return _text_field(value, "academic_program", transformations)
+
+
+def _knowledge_areas(
+    payload: dict[str, Any], transformations: list[Transformation]
+) -> tuple[str, ...]:
+    value = next(
+        (
+            payload[field]
+            for field in ("knowledge_area", "knowledge_areas", "area")
+            if field in payload
+        ),
+        None,
+    )
+    return _normalized_string_tuple(value, "knowledge_areas", transformations)
 
 
 def _publishers(value: object, transformations: list[Transformation]) -> tuple[str, ...]:

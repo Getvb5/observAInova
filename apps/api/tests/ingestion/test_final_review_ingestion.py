@@ -13,6 +13,11 @@ from pci.ingestion.contracts import HarvestedRecord
 from pci.ingestion.harvest import _claim_storage_attempt, harvest_source
 from pci.ingestion.pipeline import harvest_normalize_qualify_source
 from pci.models.base import Base, utc_now
+from pci.models.contributions import (
+    ContributionVersion,
+    ContributionVersionStatus,
+    ScientificContribution,
+)
 from pci.models.enums import HarvestStatus, RecordVisibility, RightsPolicy
 from pci.models.production import Production, ProductionVersion
 from pci.models.provenance import (
@@ -23,6 +28,8 @@ from pci.models.provenance import (
     RawRecordObject,
     Source,
 )
+from pci.models.publication import PublishedContribution
+from pci.models.review import ReviewAssignment, ReviewCase, ReviewCaseKind
 
 
 class RecordsConnector:
@@ -835,6 +842,144 @@ def test_tombstone_never_creates_a_public_orphan(session: Session, source: Sourc
             )
         )
         is not None
+    )
+
+
+def test_tombstone_flags_public_intelligence_and_opens_source_revalidation(
+    session: Session, source: Source
+) -> None:
+    source_identifier = "oai:final:published-intelligence"
+    first = HarvestedRecord(
+        source_identifier,
+        {"title": "Scientific source later withdrawn"},
+        "https://repo.example/items/published-intelligence",
+        "metadata-only",
+    )
+    initial = asyncio.run(
+        harvest_normalize_qualify_source(
+            session, RecordsConnector([first]), source.id, actor="initial-source"
+        )
+    )
+    production_id = initial.normalized_production_ids[0]
+    contribution = ScientificContribution(production_id=production_id, current_version_number=1)
+    session.add(contribution)
+    session.flush()
+    version = ContributionVersion(
+        scientific_contribution_id=contribution.id,
+        version=1,
+        status=ContributionVersionStatus.PUBLISHED,
+        created_by="test|curator",
+        description="Validated contribution",
+        validated_at=utc_now(),
+    )
+    session.add(version)
+    session.flush()
+    projection = PublishedContribution(
+        scientific_contribution_id=contribution.id,
+        contribution_version_id=version.id,
+        production_id=production_id,
+        version=1,
+        scientific_values={"description": "Validated contribution"},
+        approved_groundings=[],
+        active=True,
+    )
+    session.add(projection)
+    session.flush()
+
+    tombstone = HarvestedRecord(
+        source_identifier,
+        {"_oai_pmh": {"header": {"status": "deleted"}}},
+        None,
+        None,
+        is_tombstone=True,
+    )
+    result = asyncio.run(
+        harvest_normalize_qualify_source(
+            session, RecordsConnector([tombstone]), source.id, actor="source-tombstone"
+        )
+    )
+
+    case = session.scalar(
+        select(ReviewCase).where(
+            ReviewCase.kind == ReviewCaseKind.SOURCE_REVALIDATION,
+            ReviewCase.published_contribution_version_id == version.id,
+        )
+    )
+    assert result.tombstoned_production_ids == (production_id,)
+    assert projection.source_warning is not None
+    assert "fonte original foi removida" in projection.source_warning
+    assert case is not None
+    assignment = session.scalar(
+        select(ReviewAssignment).where(ReviewAssignment.review_case_id == case.id)
+    )
+    assert assignment is None
+
+
+def test_new_source_version_flags_published_intelligence_for_supervision(
+    session: Session, source: Source
+) -> None:
+    source_identifier = "oai:final:updated-published-intelligence"
+    first = HarvestedRecord(
+        source_identifier,
+        {"title": "Scientific source", "abstract": "Initial evidence."},
+        "https://repo.example/items/updated-published-intelligence",
+        "metadata-only",
+    )
+    initial = asyncio.run(
+        harvest_normalize_qualify_source(
+            session, RecordsConnector([first]), source.id, actor="initial-source"
+        )
+    )
+    production_id = initial.normalized_production_ids[0]
+    contribution = ScientificContribution(production_id=production_id, current_version_number=1)
+    session.add(contribution)
+    session.flush()
+    version = ContributionVersion(
+        scientific_contribution_id=contribution.id,
+        version=1,
+        status=ContributionVersionStatus.PUBLISHED,
+        created_by="test|curator",
+        description="Validated contribution",
+        validated_at=utc_now(),
+    )
+    session.add(version)
+    session.flush()
+    projection = PublishedContribution(
+        scientific_contribution_id=contribution.id,
+        contribution_version_id=version.id,
+        production_id=production_id,
+        version=1,
+        scientific_values={"description": "Validated contribution"},
+        approved_groundings=[],
+        active=True,
+    )
+    session.add(projection)
+    session.flush()
+
+    updated = HarvestedRecord(
+        source_identifier,
+        {"title": "Scientific source revised", "abstract": "Updated evidence."},
+        first.source_url,
+        first.rights,
+    )
+    asyncio.run(
+        harvest_normalize_qualify_source(
+            session, RecordsConnector([updated]), source.id, actor="updated-source"
+        )
+    )
+
+    case = session.scalar(
+        select(ReviewCase).where(
+            ReviewCase.kind == ReviewCaseKind.SOURCE_REVALIDATION,
+            ReviewCase.published_contribution_version_id == version.id,
+        )
+    )
+    assert projection.source_warning is not None
+    assert "versão mais recente" in projection.source_warning
+    assert case is not None
+    assert (
+        session.scalar(select(ReviewAssignment).where(ReviewAssignment.review_case_id == case.id))
+        is None
     )
 
 

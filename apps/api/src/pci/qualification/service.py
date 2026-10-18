@@ -52,12 +52,15 @@ def qualify_production(
             reasons.append("current normalized version has no raw provenance")
         elif raw.is_tombstone:
             reasons.append("current normalized provenance is a tombstone")
-    if session.scalar(
-        select(DuplicateCandidate.id).where(
-            DuplicateCandidate.production_id == production_id,
-            DuplicateCandidate.status == "pending",
+    if (
+        session.scalar(
+            select(DuplicateCandidate.id).where(
+                DuplicateCandidate.production_id == production_id,
+                DuplicateCandidate.status == "pending",
+            )
         )
-    ) is not None:
+        is not None
+    ):
         reasons.append("pending duplicate candidate")
 
     if reasons:
@@ -84,10 +87,23 @@ def qualify_production(
             after={
                 "production_id": str(production.id),
                 "raw_record_id": str(raw.id) if raw is not None else None,
-                "structural_checks": ["current_version", "title", "raw_provenance", "no_pending_duplicate"],
+                "structural_checks": [
+                    "current_version",
+                    "title",
+                    "raw_provenance",
+                    "no_pending_duplicate",
+                ],
             },
         )
     )
+    if version.version > 1:
+        from pci.publication.service import flag_contributions_for_source_review
+
+        flag_contributions_for_source_review(
+            session,
+            production.id,
+            "A fonte possui uma versão mais recente; a inteligência publicada precisa ser revalidada.",
+        )
     if production.visibility is RecordVisibility.METADATA_PUBLIC:
         return QualificationResult(production.id, True, False, ())
 
@@ -165,6 +181,13 @@ def record_tombstone(
                 },
                 reason="source reported a deleted OAI-PMH record",
             )
+        )
+        from pci.publication.service import flag_contributions_for_source_review
+
+        flag_contributions_for_source_review(
+            session,
+            production_id,
+            "A fonte original foi removida pelo repositório; a inteligência publicada precisa ser revalidada.",
         )
     return production_ids
 

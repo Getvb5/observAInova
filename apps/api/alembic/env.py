@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from pci.models import Base
+from pci.problems import models as problem_models  # noqa: F401
 
 config = context.config
 

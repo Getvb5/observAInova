@@ -37,6 +37,8 @@ def test_normalize_record_preserves_display_text_and_reports_every_change() -> N
         "authors",
         "organizations",
         "keywords",
+        "academic_program",
+        "knowledge_areas",
     )
     assert normalized.normalization_report == {
         "transformations": [
@@ -64,8 +66,39 @@ def test_normalize_record_preserves_display_text_and_reports_every_change() -> N
             "authors",
             "organizations",
             "keywords",
+            "academic_program",
+            "knowledge_areas",
         ],
     }
+
+
+def test_academic_metadata_is_optional_and_preserved() -> None:
+    record = normalize_record(
+        harvested_record(
+            title="Tese",
+            program="  Ciência da Informação ",
+            knowledge_area=[
+                "Ciências Sociais Aplicadas",
+                " Ciência da Informação ",
+                "ciências sociais aplicadas",
+            ],
+        )
+    )
+
+    assert record.academic_program == "Ciência da Informação"
+    assert record.knowledge_areas == (
+        "Ciências Sociais Aplicadas",
+        "Ciência da Informação",
+    )
+
+
+def test_missing_academic_metadata_is_reported_without_rejecting_record() -> None:
+    record = normalize_record(harvested_record(title="Dissertação"))
+
+    assert record.academic_program is None
+    assert record.knowledge_areas == ()
+    assert "academic_program" in record.missing_fields
+    assert "knowledge_areas" in record.missing_fields
 
 
 def test_normalize_record_cleans_all_supported_identifier_kinds() -> None:
@@ -131,6 +164,8 @@ def test_normalize_record_records_missing_title_without_inventing_one() -> None:
         "authors",
         "organizations",
         "keywords",
+        "academic_program",
+        "knowledge_areas",
     )
     assert normalized.normalization_report["missing_fields"] == [
         "title",
@@ -140,6 +175,8 @@ def test_normalize_record_records_missing_title_without_inventing_one() -> None:
         "authors",
         "organizations",
         "keywords",
+        "academic_program",
+        "knowledge_areas",
     ]
 
 

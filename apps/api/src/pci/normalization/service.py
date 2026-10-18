@@ -268,6 +268,8 @@ def _create_version(
         handle_digest=_identifier_digest(record, "handle"),
         source_digest=_identifier_digest(record, "source"),
         keywords=list(record.keywords),
+        academic_program=record.academic_program,
+        knowledge_areas=list(record.knowledge_areas) or None,
         publishers=list(record.publishers),
         source_url=record.source_url,
         full_text_available=record.full_text_available,

@@ -11,3 +11,11 @@ def test_httpx_is_declared_as_a_runtime_dependency() -> None:
 
     assert any(dependency.startswith("httpx") for dependency in runtime)
     assert not any(dependency.startswith("httpx") for dependency in development)
+
+
+def test_pypdf_is_declared_as_a_runtime_dependency() -> None:
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    configuration = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    runtime = configuration["project"]["dependencies"]
+
+    assert any(dependency.startswith("pypdf") for dependency in runtime)

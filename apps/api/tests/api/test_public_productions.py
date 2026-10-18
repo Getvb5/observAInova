@@ -2,10 +2,11 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
-from pci.models.production import Production
+from pci.models.documents import SourceDocument, SourceDocumentStatus
+from pci.models.production import Production, ProductionVersion
 
 
 def test_public_list_batches_tombstone_state_query(
@@ -139,6 +140,36 @@ def test_missing_source_link_is_reported_as_unavailable(
     assert response.status_code == 200
     assert response.json()["source"]["source_url"] is None
     assert response.json()["source"]["access_status"] == "unavailable"
+
+
+def test_live_prepared_document_makes_full_text_available_without_mutating_version(
+    client: TestClient,
+    session: Session,
+    productions: dict[str, Production],
+) -> None:
+    production = productions["public"]
+    version = session.scalar(
+        select(ProductionVersion).where(
+            ProductionVersion.production_id == production.id,
+            ProductionVersion.version == production.current_version_number,
+        )
+    )
+    assert version is not None
+    original_availability = version.full_text_available
+    session.add(
+        SourceDocument(
+            production_version_id=version.id,
+            status=SourceDocumentStatus.OCR_REQUIRED,
+            official_url="https://repository.example/items/1/tese.pdf",
+        )
+    )
+    session.flush()
+
+    response = client.get(f"/api/v1/productions/{production.id}")
+
+    assert response.status_code == 200
+    assert response.json()["full_text_available"] is True
+    assert version.full_text_available == original_availability
 
 
 def test_private_and_unknown_details_are_indistinguishable(

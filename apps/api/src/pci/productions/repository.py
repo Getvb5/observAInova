@@ -7,6 +7,7 @@ from sqlalchemy import cast as sql_cast
 from sqlalchemy.orm import Session
 
 from pci.models.actors import Authorship, Organization, Person, ProductionOrganization
+from pci.models.documents import SourceDocument, SourceDocumentStatus
 from pci.models.enums import ProductionType, RecordVisibility, TerritoryRelation
 from pci.models.production import Production, ProductionVersion
 from pci.models.provenance import RawRecord, Source
@@ -31,6 +32,7 @@ class PublicProductionRecord:
     institutions: tuple[str, ...]
     territory_relations: tuple[TerritoryRelation, ...]
     source_tombstoned: bool
+    prepared_full_text: bool
 
 
 ProductionTuple = tuple[Production, ProductionVersion, RawRecord | None, Source | None]
@@ -130,6 +132,7 @@ def _hydrate_records(
 ) -> list[PublicProductionRecord]:
     production_ids = [production.id for production, _, _, _ in rows]
     source_tombstone_states = _source_tombstone_states(session, rows)
+    prepared_text_states = _prepared_text_states(session, rows)
     authors: dict[uuid.UUID, list[tuple[int, str]]] = {
         production_id: [] for production_id in production_ids
     }
@@ -173,6 +176,7 @@ def _hydrate_records(
                 sorted(territories[production.id], key=lambda relation: relation.value)
             ),
             source_tombstoned=source_tombstone_states[production.id],
+            prepared_full_text=prepared_text_states[version.id],
         )
         for production, version, raw_record, source in rows
     ]
@@ -238,3 +242,23 @@ def _source_tombstone_states(
             newest_tombstone.state_sequence > raw_record.state_sequence
         )
     return result
+
+
+def _prepared_text_states(
+    session: Session, rows: list[ProductionTuple]
+) -> dict[uuid.UUID, bool]:
+    version_ids = [version.id for _, version, _, _ in rows]
+    prepared = set(
+        session.scalars(
+            select(SourceDocument.production_version_id).where(
+                SourceDocument.production_version_id.in_(version_ids),
+                SourceDocument.status.in_(
+                    (
+                        SourceDocumentStatus.TEXT_EXTRACTED,
+                        SourceDocumentStatus.OCR_REQUIRED,
+                    )
+                ),
+            )
+        ).all()
+    )
+    return {version_id: version_id in prepared for version_id in version_ids}

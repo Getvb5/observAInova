@@ -31,3 +31,31 @@ def test_worker_registers_serializable_ingestion_actor(monkeypatch) -> None:
     assert worker.harvest_source_task.broker is worker.broker
     assert worker.harvest_source_task.queue_name == "ingestion"
     assert get_type_hints(worker.harvest_source_task.fn)["source_id"] is str
+
+
+def test_worker_registers_serializable_document_actor(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://pci:pci@postgres:5432/pci")
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
+    monkeypatch.setenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000")
+    monkeypatch.setenv("OBJECT_STORAGE_BUCKET", "pci-objects")
+
+    worker = importlib.import_module("pci.worker")
+
+    assert worker.prepare_document_text_task.broker is worker.broker
+    assert worker.prepare_document_text_task.queue_name == "documents"
+    assert get_type_hints(worker.prepare_document_text_task.fn)["production_version_id"] is str
+
+
+def test_worker_registers_serializable_claims_actor(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://pci:pci@postgres:5432/pci")
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
+    monkeypatch.setenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000")
+    monkeypatch.setenv("OBJECT_STORAGE_BUCKET", "pci-objects")
+
+    worker = importlib.import_module("pci.worker")
+    hints = get_type_hints(worker.extract_document_task.fn)
+
+    assert worker.extract_document_task.broker is worker.broker
+    assert worker.extract_document_task.queue_name == "claims"
+    assert hints["document_text_version_id"] is str
+    assert hints["rerun"] is bool

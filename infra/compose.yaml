@@ -56,6 +56,13 @@ services:
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pci-objects}
       OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-pci}
       OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-in-development}
+      APP_ENV: ${APP_ENV:-development}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      LOCAL_AUTH_SECRET: ${LOCAL_AUTH_SECRET:-change-me-in-development}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-observainova-api}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
+      CLAIMS_PROVIDER: ${CLAIMS_PROVIDER:-deterministic}
     ports:
       - "8000:8000"
     volumes:
@@ -74,6 +81,29 @@ services:
       timeout: 5s
       retries: 10
 
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    command: npm install && npm run dev -- --hostname 0.0.0.0
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_INTERNAL_AUTH_MODE: ${NEXT_PUBLIC_INTERNAL_AUTH_MODE:-local}
+      NEXT_PUBLIC_OIDC_AUTHORITY: ${NEXT_PUBLIC_OIDC_AUTHORITY:-}
+      NEXT_PUBLIC_OIDC_CLIENT_ID: ${NEXT_PUBLIC_OIDC_CLIENT_ID:-observainova-web}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../apps/web:/app
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   worker:
     image: python:3.12-slim
     working_dir: /app
@@ -87,6 +117,11 @@ services:
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pci-objects}
       OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-pci}
       OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-me-in-development}
+      APP_ENV: ${APP_ENV:-development}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      LOCAL_AUTH_SECRET: ${LOCAL_AUTH_SECRET:-change-me-in-development}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-observainova-api}
+      CLAIMS_PROVIDER: ${CLAIMS_PROVIDER:-deterministic}
     volumes:
       - ../apps/api:/app
     depends_on:
@@ -102,6 +137,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  publication-relay:
+    image: python:3.12-slim
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -e . && python -m pci.publication.relay"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pci:pci@postgres:5432/pci}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pci-objects}
+      APP_ENV: ${APP_ENV:-development}
+      AUTH_MODE: ${AUTH_MODE:-local}
+      LOCAL_AUTH_SECRET: ${LOCAL_AUTH_SECRET:-change-me-in-development}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-observainova-api}
+      PUBLICATION_RELAY_INTERVAL_SECONDS: ${PUBLICATION_RELAY_INTERVAL_SECONDS:-5}
+      PUBLICATION_LEASE_SECONDS: ${PUBLICATION_LEASE_SECONDS:-300}
+    volumes:
+      - ../apps/api:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   minio-data:

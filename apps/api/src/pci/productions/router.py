@@ -1,11 +1,9 @@
 import uuid
-from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, status
 
-from pci.db import session_scope
+from pci.api_dependencies import SessionDependency
 from pci.models.enums import ProductionType, TerritoryRelation
 from pci.productions.repository import ProductionFilters
 from pci.productions.schemas import PublicProductionDetail, PublicProductionPage
@@ -15,18 +13,6 @@ from pci.productions.service import (
 )
 
 router = APIRouter(prefix="/productions", tags=["productions"])
-
-
-def get_session(request: Request) -> Iterator[Session]:
-    session_factory = getattr(request.app.state, "session_factory", None)
-    if session_factory is not None:
-        yield session_factory()
-        return
-    with session_scope() as session:
-        yield session
-
-
-SessionDependency = Annotated[Session, Depends(get_session)]
 ProductionTypeQuery = Annotated[ProductionType | None, Query(alias="type")]
 PageQuery = Annotated[int, Query(ge=1, le=1_000_000)]
 PageSizeQuery = Annotated[int, Query(ge=1, le=100)]

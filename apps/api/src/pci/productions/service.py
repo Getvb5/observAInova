@@ -83,7 +83,7 @@ def _summary(record: repository.PublicProductionRecord) -> PublicProductionSumma
 
 def _live_full_text_available(record: repository.PublicProductionRecord) -> bool:
     raw = record.raw_record
-    return bool(
+    return record.prepared_full_text or bool(
         raw is not None
         and not raw.is_tombstone
         and not record.source_tombstoned
@@ -98,7 +98,12 @@ def _missing_fields(report: dict[str, Any] | None) -> list[str]:
     value = report.get("missing_fields")
     if not isinstance(value, list):
         return []
-    return [field for field in value if isinstance(field, str)]
+    newly_collected_fields = {"academic_program", "knowledge_areas"}
+    return [
+        field
+        for field in value
+        if isinstance(field, str) and field not in newly_collected_fields
+    ]
 
 
 def _string_dict(value: dict[str, Any] | None) -> dict[str, str]:

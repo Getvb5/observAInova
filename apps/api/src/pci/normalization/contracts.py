@@ -26,6 +26,8 @@ class NormalizedRecord:
     authors: tuple[NormalizedAuthor, ...]
     organizations: tuple[str, ...]
     keywords: tuple[str, ...]
+    academic_program: str | None
+    knowledge_areas: tuple[str, ...]
     publishers: tuple[str, ...]
     source_url: str | None
     rights: str | None

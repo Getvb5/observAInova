@@ -31,6 +31,8 @@ class ObjectStore(Protocol):
         self, key: str, content: bytes, media_type: str, metadata: dict[str, str]
     ) -> None: ...
 
+    def get_object(self, key: str) -> bytes: ...
+
 
 class S3ObjectStore:
     def __init__(
@@ -60,6 +62,11 @@ class S3ObjectStore:
             ContentType=media_type,
             Metadata=metadata,
         )
+
+    def get_object(self, key: str) -> bytes:
+        response = self.client.get_object(Bucket=self.bucket, Key=key)
+        body = response["Body"]
+        return bytes(body.read())
 
     def _ensure_bucket(self) -> None:
         """Idempotently make the configured MinIO/S3 bucket available before a write."""

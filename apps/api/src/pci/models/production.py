@@ -93,6 +93,8 @@ class ProductionVersion(UUIDPrimaryKeyMixin, Base):
     handle_digest: Mapped[str | None] = mapped_column(String(32), index=True)
     source_digest: Mapped[str | None] = mapped_column(String(32), index=True)
     keywords: Mapped[list[str] | None] = mapped_column(JSON_TYPE)
+    academic_program: Mapped[str | None] = mapped_column(Text)
+    knowledge_areas: Mapped[list[str] | None] = mapped_column(JSON_TYPE)
     publishers: Mapped[list[str] | None] = mapped_column(JSON_TYPE)
     source_url: Mapped[str | None] = mapped_column(String(2048))
     full_text_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

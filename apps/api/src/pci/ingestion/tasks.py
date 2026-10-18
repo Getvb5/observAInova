@@ -3,12 +3,14 @@ import uuid
 from pathlib import Path
 
 import dramatiq
+from sqlalchemy import select
 
 from pci.db import session_scope
 from pci.ingestion.connectors.base import SourceConnector
 from pci.ingestion.connectors.fixture import FixtureConnector
 from pci.ingestion.connectors.oai_pmh import OaiPmhConnector
 from pci.ingestion.pipeline import harvest_normalize_qualify_source
+from pci.models.production import Production, ProductionVersion
 from pci.models.provenance import Source
 
 INGESTION_AUDIT_ACTOR = "dramatiq:ingestion"
@@ -17,12 +19,13 @@ INGESTION_AUDIT_ACTOR = "dramatiq:ingestion"
 @dramatiq.actor(queue_name="ingestion")
 def harvest_source_task(source_id: str) -> None:
     parsed_source_id = uuid.UUID(source_id)
+    production_version_ids: list[str] = []
     with session_scope() as session:
         source = session.get(Source, parsed_source_id)
         if source is None:
             raise ValueError(f"source does not exist: {parsed_source_id}")
         connector = resolve_connector(source)
-        asyncio.run(
+        result = asyncio.run(
             harvest_normalize_qualify_source(
                 session,
                 connector,
@@ -30,6 +33,22 @@ def harvest_source_task(source_id: str) -> None:
                 actor=INGESTION_AUDIT_ACTOR,
             )
         )
+        for production_id in result.normalized_production_ids:
+            production = session.get(Production, production_id)
+            if production is None:
+                continue
+            version = session.scalar(
+                select(ProductionVersion).where(
+                    ProductionVersion.production_id == production.id,
+                    ProductionVersion.version == production.current_version_number,
+                )
+            )
+            if version is not None:
+                production_version_ids.append(str(version.id))
+    from pci.documents.tasks import prepare_document_text_task
+
+    for production_version_id in production_version_ids:
+        prepare_document_text_task.send(production_version_id)
 
 
 def resolve_connector(source: Source) -> SourceConnector:
