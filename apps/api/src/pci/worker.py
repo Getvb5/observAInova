@@ -1,4 +1,5 @@
 import dramatiq
+from dramatiq.actor import Actor
 from dramatiq.brokers.redis import RedisBroker
 
 from pci.settings import Settings
@@ -13,10 +14,21 @@ from pci.documents import tasks as document_tasks
 from pci.ingestion import tasks as ingestion_tasks
 from pci.publication import tasks as publication_tasks
 
-extract_document_task = claim_tasks.extract_document_task
-harvest_source_task = ingestion_tasks.harvest_source_task
-prepare_document_text_task = document_tasks.prepare_document_text_task
-process_publication_event_task = publication_tasks.process_publication_event_task
+
+def _bind_to_worker_broker(actor: Actor) -> Actor:  # type: ignore[type-arg]
+    """Rebind actors that an embedding process imported before the worker bootstrap."""
+    if actor.broker is not broker:
+        actor.broker = broker
+        broker.declare_actor(actor)  # type: ignore[no-untyped-call]
+    return actor
+
+
+extract_document_task = _bind_to_worker_broker(claim_tasks.extract_document_task)
+harvest_source_task = _bind_to_worker_broker(ingestion_tasks.harvest_source_task)
+prepare_document_text_task = _bind_to_worker_broker(document_tasks.prepare_document_text_task)
+process_publication_event_task = _bind_to_worker_broker(
+    publication_tasks.process_publication_event_task
+)
 
 
 @dramatiq.actor(queue_name="bootstrap")

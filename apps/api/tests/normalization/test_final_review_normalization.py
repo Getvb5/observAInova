@@ -28,6 +28,20 @@ def _source(session: Session, code: str) -> Source:
     return source
 
 
+def _ufpe_corpus_source(session: Session, code: str) -> Source:
+    source = _source(session, code)
+    source.schedule = {
+        "institution_sector": "public",
+        "institution_state": "PE",
+        "corpus_types": ["thesis", "dissertation"],
+        "analysis_year_start": 2016,
+        "analysis_year_end": 2025,
+        "current_year": 2026,
+    }
+    session.flush()
+    return source
+
+
 def _raw(
     session: Session,
     source: Source,
@@ -441,6 +455,33 @@ def test_structural_qualification_keeps_pending_duplicate_candidates_private(
         )
         is not None
     )
+
+
+def test_qualification_keeps_records_outside_the_configured_corpus_private(
+    session: Session,
+) -> None:
+    source = _ufpe_corpus_source(session, "ufpe-corpus-boundary")
+    raw = _raw(
+        session,
+        source,
+        "outside-period",
+        {
+            "title": "Tese histórica fora do recorte analítico",
+            "abstract": "Registro preservado para proveniência.",
+            "date": "2015",
+            "type": "Tese",
+        },
+    )
+    production_id = persist_normalized_record(session, raw.id)
+
+    result = qualify_production(session, production_id)
+    production = session.get(Production, production_id)
+
+    assert result.eligible is False
+    assert result.published is False
+    assert result.reasons == ("publication_year_outside_corpus",)
+    assert production is not None
+    assert production.visibility is RecordVisibility.PRIVATE
 
 
 def test_new_normalized_version_returns_a_public_production_to_private_until_requalified(

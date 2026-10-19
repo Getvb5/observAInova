@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pci.documents.eligibility import evaluate_corpus_eligibility
 from pci.models.enums import RecordVisibility
 from pci.models.production import DuplicateCandidate, Production, ProductionVersion
 from pci.models.provenance import AuditEvent, RawRecord
@@ -63,6 +64,10 @@ def qualify_production(
     ):
         reasons.append("pending duplicate candidate")
 
+    if version is not None and raw is not None and raw.source.schedule is not None:
+        corpus_eligibility = evaluate_corpus_eligibility(version, raw.source)
+        reasons.extend(corpus_eligibility.reasons)
+
     if reasons:
         session.add(
             _audit_event(
@@ -78,6 +83,14 @@ def qualify_production(
         return QualificationResult(production.id, False, False, tuple(reasons))
 
     assert version is not None
+    structural_checks = [
+        "current_version",
+        "title",
+        "raw_provenance",
+        "no_pending_duplicate",
+    ]
+    if raw is not None and raw.source.schedule is not None:
+        structural_checks.append("corpus_scope")
     session.add(
         _audit_event(
             actor=actor,
@@ -87,12 +100,7 @@ def qualify_production(
             after={
                 "production_id": str(production.id),
                 "raw_record_id": str(raw.id) if raw is not None else None,
-                "structural_checks": [
-                    "current_version",
-                    "title",
-                    "raw_provenance",
-                    "no_pending_duplicate",
-                ],
+                "structural_checks": structural_checks,
             },
         )
     )
