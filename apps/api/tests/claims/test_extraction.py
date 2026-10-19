@@ -323,3 +323,18 @@ def test_negative_decision_does_not_retain_selected_grounding(session: Session) 
     )
 
     assert decision.grounding_ids is None
+
+def test_disabled_provider_does_not_create_unvalidated_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pci.claims import tasks
+
+    monkeypatch.setenv("CLAIMS_PROVIDER", "disabled")
+    monkeypatch.setattr(
+        tasks,
+        "Settings",
+        lambda: type("DisabledSettings", (), {"claims_provider": "disabled"})(),
+    )
+
+    assert tasks.extract_document_task.fn(str(uuid.uuid4())) is None
+

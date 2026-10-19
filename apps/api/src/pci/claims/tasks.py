@@ -11,6 +11,8 @@ from pci.settings import Settings
 @dramatiq.actor(queue_name="claims")
 def extract_document_task(document_text_version_id: str, rerun: bool = False) -> None:
     settings = Settings()  # type: ignore[call-arg]
+    if settings.claims_provider == "disabled":
+        return
     provider = (
         HttpExtractionProvider(
             settings.claims_endpoint_url,

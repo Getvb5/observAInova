@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     local_auth_secret: str = "change-me-in-development"
     local_auth_issuer: str = "observainova-local"
 
-    claims_provider: Literal["deterministic", "http"] = "deterministic"
+    claims_provider: Literal["disabled", "deterministic", "http"] = "deterministic"
     claims_endpoint_url: str = "https://example.invalid/extract"
     claims_api_key: str = ""
     claims_model: str = "provider-model"
