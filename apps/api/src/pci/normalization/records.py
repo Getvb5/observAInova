@@ -1,3 +1,4 @@
+import unicodedata
 from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any, cast
@@ -225,9 +226,21 @@ def _production_type(value: object, transformations: list[Transformation]) -> Pr
     original, discarded = _first_scalar_string(value)
     if original is None:
         return None
-    normalized = normalize_display(original).casefold().replace("-", "_").replace(" ", "_")
+    normalized = _production_type_key(original)
+    aliases = {
+        "tese": ProductionType.THESIS,
+        "tese_de_doutorado": ProductionType.THESIS,
+        "doctoral_thesis": ProductionType.THESIS,
+        "doctoralthesis": ProductionType.THESIS,
+        "dissertacao": ProductionType.DISSERTATION,
+        "dissertacao_de_mestrado": ProductionType.DISSERTATION,
+        "master_thesis": ProductionType.DISSERTATION,
+        "masterthesis": ProductionType.DISSERTATION,
+    }
     try:
-        result = ProductionType(normalized)
+        result = aliases.get(normalized)
+        if result is None:
+            result = ProductionType(normalized)
     except ValueError:
         _record_change(transformations, "type", original, None)
         for index, discarded_value in discarded:
@@ -252,6 +265,16 @@ def _production_type(value: object, transformations: list[Transformation]) -> Pr
             result.value,
         )
     return result
+
+
+def _production_type_key(value: str) -> str:
+    display = normalize_display(value).casefold()
+    ascii_value = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", display)
+        if not unicodedata.combining(character)
+    )
+    return ascii_value.replace("-", "_").replace(" ", "_")
 
 
 def _authors(value: object, transformations: list[Transformation]) -> tuple[NormalizedAuthor, ...]:

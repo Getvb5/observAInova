@@ -47,6 +47,30 @@ export interface AnswerProblemRequest {
   knowledge_status: KnowledgeStatus;
 }
 
+export interface ProblemEvidenceMapItem {
+  scientific_contribution_id: string;
+  contribution_type: string | null;
+  description: string | null;
+  problem_or_phenomenon: string | null;
+  evidence_results: string | null;
+  barriers_limitations: string | null;
+  applicability: string | null;
+  institution: string | null;
+  publication_year: number | null;
+  source_scope: string | null;
+  match_score: number;
+  matched_terms: string[];
+  explanation: string;
+}
+
+export interface ProblemEvidenceMap {
+  problem_id: string;
+  problem_version: number;
+  status: "ready" | "no_validated_evidence";
+  query_summary: string;
+  items: ProblemEvidenceMapItem[];
+}
+
 export interface ProblemApi {
   create(description: string): Promise<CreateProblemResponse>;
   read(problemId: string, editToken: string): Promise<ProblemState>;
@@ -57,6 +81,7 @@ export interface ProblemApi {
   ): Promise<ProblemState>;
   confirm(problemId: string, editToken: string): Promise<ProblemState>;
   reopen(problemId: string, editToken: string): Promise<ProblemState>;
+  evidenceMap(problemId: string, editToken: string): Promise<ProblemEvidenceMap>;
 }
 
 export class ProblemApiError extends Error {
@@ -124,6 +149,13 @@ export const problemApi: ProblemApi = {
     return request<ProblemState>(
       `/problems/${problemId}/revisions`,
       { method: "POST" },
+      editToken,
+    );
+  },
+  evidenceMap(problemId, editToken) {
+    return request<ProblemEvidenceMap>(
+      `/problems/${problemId}/evidence-map`,
+      {},
       editToken,
     );
   },

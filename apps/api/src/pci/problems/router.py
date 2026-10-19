@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from pci.api_dependencies import SessionDependency
 from pci.problems import repository
 from pci.problems.dialogue import FIELD_ORDER, IncompleteProblemError
+from pci.problems.matching import build_evidence_map
 from pci.problems.models import PublicProblem
 from pci.problems.schemas import (
     AnswerProblemRequest,
@@ -13,6 +14,7 @@ from pci.problems.schemas import (
     CreatedProblemResponse,
     CreateProblemRequest,
     NextQuestionResponse,
+    ProblemEvidenceMapResponse,
     ProblemFieldResponse,
     ProblemStateResponse,
 )
@@ -173,3 +175,18 @@ def reopen_problem_for_revision(
 ) -> ProblemStateResponse:
     problem = _authorized_problem(session, problem_id, problem_token)
     return _state_response(reopen_problem(session, problem))
+
+
+@router.get("/{problem_id}/evidence-map", response_model=ProblemEvidenceMapResponse)
+def problem_evidence_map(
+    problem_id: uuid.UUID,
+    session: SessionDependency,
+    problem_token: ProblemToken = "",
+) -> ProblemEvidenceMapResponse:
+    problem = _authorized_problem(session, problem_id, problem_token)
+    if problem.status.value != "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "confirm_before_mapping"},
+        )
+    return ProblemEvidenceMapResponse.model_validate(build_evidence_map(session, problem))

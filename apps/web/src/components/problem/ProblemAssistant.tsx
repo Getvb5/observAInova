@@ -161,7 +161,8 @@ export function ProblemAssistant({ api = problemApi }: ProblemAssistantProps) {
   }
 
   if (state?.status === "confirmed") {
-    return <ProblemHandoff />;
+    if (!session) return null;
+    return <ProblemHandoff api={api} problemId={session.problemId} editToken={session.editToken} />;
   }
 
   if (state?.ready_to_confirm) {

@@ -17,6 +17,7 @@ class OaiPmhConnector:
         base_url: str,
         *,
         metadata_prefix: str = "oai_dc",
+        set_spec: str | None = None,
         timeout: float = 30.0,
         max_retries: int = 2,
     ) -> None:
@@ -24,6 +25,7 @@ class OaiPmhConnector:
             raise ValueError("max_retries cannot be negative")
         self.base_url = base_url
         self.metadata_prefix = metadata_prefix
+        self.set_spec = set_spec
         self.timeout = timeout
         self.max_retries = max_retries
 
@@ -34,6 +36,8 @@ class OaiPmhConnector:
                 params = {"verb": "ListRecords"}
                 if token is None:
                     params["metadataPrefix"] = self.metadata_prefix
+                    if self.set_spec:
+                        params["set"] = self.set_spec
                 else:
                     params["resumptionToken"] = token
 

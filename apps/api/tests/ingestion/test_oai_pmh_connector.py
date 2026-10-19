@@ -132,6 +132,25 @@ async def test_oai_connector_follows_resumption_token(httpx_mock) -> None:
 
 
 @pytest.mark.asyncio
+async def test_oai_connector_scopes_the_initial_request_to_a_configured_set(
+    httpx_mock,
+) -> None:
+    httpx_mock.add_response(text=second_oai_page_without_token())
+
+    records = [
+        record
+        async for record in OaiPmhConnector(
+            "https://repo.example/oai", set_spec="com_123456789_50"
+        ).harvest(None)
+    ]
+
+    assert len(records) == 1
+    assert str(httpx_mock.get_requests()[0].url.params) == (
+        "verb=ListRecords&metadataPrefix=oai_dc&set=com_123456789_50"
+    )
+
+
+@pytest.mark.asyncio
 async def test_oai_connector_retries_transient_http_errors(httpx_mock) -> None:
     """Removing bounded transient retry must expose the first 503 response."""
     httpx_mock.add_response(status_code=503)

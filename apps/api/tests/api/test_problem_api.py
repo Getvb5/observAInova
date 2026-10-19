@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from pci.models.publication import PublishedContribution
 from pci.problems.models import (
     ProblemAnswerEvent,
     ProblemContextVersion,
@@ -244,3 +245,102 @@ def test_extra_request_keys_are_rejected(client: TestClient) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_confirmed_problem_map_returns_only_matching_published_contributions(
+    client: TestClient, session: Session
+) -> None:
+    problem_id, token = create_problem(client)
+    answer_complete_problem(client, problem_id, token)
+    headers = {"X-Problem-Token": token}
+    confirmed = client.post(f"/api/v1/problems/{problem_id}/confirm", headers=headers)
+    assert confirmed.status_code == 201
+
+    matching = PublishedContribution(
+        scientific_contribution_id=uuid.uuid4(),
+        contribution_version_id=uuid.uuid4(),
+        production_id=uuid.uuid4(),
+        version=1,
+        contribution_type="method",
+        scientific_values={
+            "problem_or_phenomenon": "Espera por consultas de cardiologia",
+            "description": "Método de regulação da fila de cardiologia",
+            "evidence_results": "Redução do tempo de espera para consultas",
+            "barriers_limitations": "Depende da qualidade dos dados da agenda",
+            "applicability": "Serviços públicos de regulação ambulatorial",
+        },
+        approved_groundings=[],
+        institution="UFPE",
+        publication_year=2024,
+        source_scope="full_text",
+        production_type="dissertation",
+        active=True,
+    )
+    unpublished = PublishedContribution(
+        scientific_contribution_id=uuid.uuid4(),
+        contribution_version_id=uuid.uuid4(),
+        production_id=uuid.uuid4(),
+        version=1,
+        contribution_type="method",
+        scientific_values={
+            "description": "Outra proposta para reduzir a espera em cardiologia",
+        },
+        approved_groundings=[],
+        institution="UFPE",
+        publication_year=2023,
+        source_scope="abstract_only",
+        production_type="thesis",
+        active=False,
+    )
+    unrelated = PublishedContribution(
+        scientific_contribution_id=uuid.uuid4(),
+        contribution_version_id=uuid.uuid4(),
+        production_id=uuid.uuid4(),
+        version=1,
+        contribution_type="diagnosis",
+        scientific_values={
+            "description": "Diagnóstico de fungos em plantações de melão",
+        },
+        approved_groundings=[],
+        institution="UFPE",
+        publication_year=2022,
+        source_scope="full_text",
+        production_type="thesis",
+        active=True,
+    )
+    session.add_all([matching, unpublished, unrelated])
+    session.flush()
+
+    response = client.get(
+        f"/api/v1/problems/{problem_id}/evidence-map",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["problem_version"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["scientific_contribution_id"] == str(
+        matching.scientific_contribution_id
+    )
+    assert "cardiologia" in body["items"][0]["matched_terms"]
+    assert "candidate" not in response.text.lower()
+
+
+def test_confirmed_problem_map_reports_an_explicit_evidence_gap(
+    client: TestClient,
+) -> None:
+    problem_id, token = create_problem(client)
+    answer_complete_problem(client, problem_id, token)
+    headers = {"X-Problem-Token": token}
+    client.post(f"/api/v1/problems/{problem_id}/confirm", headers=headers)
+
+    response = client.get(
+        f"/api/v1/problems/{problem_id}/evidence-map",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "no_validated_evidence"
+    assert response.json()["items"] == []

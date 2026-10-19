@@ -88,6 +88,13 @@ function fakeApi(overrides: Partial<ProblemApi> = {}): ProblemApi {
     answer: vi.fn(),
     confirm: vi.fn(),
     reopen: vi.fn(),
+    evidenceMap: vi.fn().mockResolvedValue({
+      problem_id: problemId,
+      problem_version: 1,
+      status: "no_validated_evidence",
+      query_summary: "Formulação confirmada",
+      items: [],
+    }),
     ...overrides,
   };
 }
@@ -259,4 +266,50 @@ it("confirms the problem without fabricating solution paths", async () => {
   expect(screen.getByText(/somente com contribuições científicas validadas/i)).toBeInTheDocument();
   expect(screen.queryByText(/caminho recomendado/i)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Revisar formulação" })).not.toBeInTheDocument();
+});
+
+it("shows only validated scientific contributions related to the confirmed problem", async () => {
+  seedProblemSession();
+  const contributionId = "00000000-0000-4000-8000-000000000099";
+  const api = fakeApi({
+    read: vi.fn().mockResolvedValue(confirmedProblemState()),
+    evidenceMap: vi.fn().mockResolvedValue({
+      problem_id: problemId,
+      problem_version: 1,
+      status: "ready",
+      query_summary: "Espera por consultas de cardiologia em Caruaru",
+      items: [
+        {
+          scientific_contribution_id: contributionId,
+          contribution_type: "method",
+          description: "Método de regulação da fila de cardiologia",
+          problem_or_phenomenon: "Espera por consultas de cardiologia",
+          evidence_results: "Redução do tempo de espera",
+          barriers_limitations: "Depende da qualidade dos dados da agenda",
+          applicability: "Serviços públicos de regulação ambulatorial",
+          institution: "UFPE",
+          publication_year: 2024,
+          source_scope: "full_text",
+          match_score: 0.42,
+          matched_terms: ["cardiologia", "consultas", "espera"],
+          explanation:
+            "Correspondência inicial com termos do problema confirmado: cardiologia, consultas, espera.",
+        },
+      ],
+    }),
+  });
+
+  render(<ProblemAssistant api={api} />);
+
+  expect(
+    await screen.findByRole("heading", { name: "Contribuições científicas relacionadas" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Método de regulação da fila de cardiologia")).toBeInTheDocument();
+  expect(screen.getByText("Redução do tempo de espera")).toBeInTheDocument();
+  expect(screen.getByText(/depende da qualidade dos dados/i)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Examinar fundamento científico" })).toHaveAttribute(
+    "href",
+    `/contribuicoes/${contributionId}`,
+  );
+  expect(api.evidenceMap).toHaveBeenCalledWith(problemId, editToken);
 });

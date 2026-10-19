@@ -59,11 +59,14 @@ def resolve_connector(source: Source) -> SourceConnector:
     if source.connector_type in {"oai_pmh", "oai-pmh"}:
         schedule = source.schedule or {}
         metadata_prefix = str(schedule.get("metadata_prefix", "oai_dc"))
+        raw_set_spec = schedule.get("set_spec")
+        set_spec = str(raw_set_spec) if raw_set_spec else None
         timeout = float(schedule.get("timeout", 30.0))
         max_retries = int(schedule.get("max_retries", 2))
         return OaiPmhConnector(
             source.base_url,
             metadata_prefix=metadata_prefix,
+            set_spec=set_spec,
             timeout=timeout,
             max_retries=max_retries,
         )

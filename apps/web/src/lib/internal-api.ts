@@ -79,7 +79,8 @@ export interface InternalApi {
 }
 
 export function createInternalApi(getToken: () => string | undefined): InternalApi {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ??
+    (process.env.NODE_ENV === "development" ? "http://localhost:8000/api/v1" : "/api/v1");
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const token = getToken();
     if (!token) throw new Error("Sessão interna ausente ou expirada.");

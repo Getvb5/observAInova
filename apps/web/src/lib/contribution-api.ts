@@ -20,9 +20,12 @@ export interface PublicContribution {
 export interface ContributionApi { get(contributionId: string): Promise<PublicContribution> }
 
 export function createContributionApi(): ContributionApi {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const baseUrl =
+    process.env.API_INTERNAL_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:8000";
   return { async get(contributionId) {
-    const response = await fetch(`${baseUrl}/contributions/${encodeURIComponent(contributionId)}`, { next: { revalidate: 60 } });
+    const response = await fetch(`${baseUrl}/api/v1/contributions/${encodeURIComponent(contributionId)}`, { next: { revalidate: 60 } });
     if (response.status === 404) throw new ContributionNotFoundError();
     if (!response.ok) throw new Error("Não foi possível carregar a contribuição científica.");
     return response.json() as Promise<PublicContribution>;

@@ -3,6 +3,7 @@ from copy import deepcopy
 import pytest
 
 from pci.ingestion.contracts import HarvestedRecord
+from pci.models.enums import ProductionType
 from pci.normalization.records import normalize_record
 
 
@@ -356,3 +357,28 @@ def test_normalize_record_preserves_brackets_in_ipv6_urls() -> None:
     )
 
     assert normalize_record(raw).source_url == "https://[2001:db8::1]:8443/A"
+
+@pytest.mark.parametrize(
+    ("raw_type", "expected"),
+    [
+        ("Tese", ProductionType.THESIS),
+        ("Tese de doutorado", ProductionType.THESIS),
+        ("Dissertação", ProductionType.DISSERTATION),
+        ("Dissertação de mestrado", ProductionType.DISSERTATION),
+        ("masterThesis", ProductionType.DISSERTATION),
+        ("doctoralThesis", ProductionType.THESIS),
+    ],
+)
+def test_normalize_record_maps_repository_thesis_and_dissertation_labels(
+    raw_type: str, expected: ProductionType
+) -> None:
+    record = normalize_record(
+        HarvestedRecord(
+            source_identifier="oai:ufpe:type",
+            payload={"title": "Pesquisa", "type": raw_type},
+            source_url="https://repositorio.ufpe.br/handle/123456789/1",
+            rights="metadata_only",
+        )
+    )
+
+    assert record.type is expected

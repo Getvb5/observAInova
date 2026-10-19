@@ -11,7 +11,7 @@ from pci.problems.models import (
 
 
 class ProblemSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
 class CreateProblemRequest(ProblemSchema):
@@ -64,3 +64,27 @@ class CreatedProblemResponse(ProblemSchema):
 
 class ConfirmedProblemResponse(ProblemStateResponse):
     map_status: Literal["awaiting_validated_contributions"]
+
+
+class ProblemEvidenceMapItem(ProblemSchema):
+    scientific_contribution_id: uuid.UUID
+    contribution_type: str | None
+    description: str | None
+    problem_or_phenomenon: str | None
+    evidence_results: str | None
+    barriers_limitations: str | None
+    applicability: str | None
+    institution: str | None
+    publication_year: int | None
+    source_scope: str | None
+    match_score: float
+    matched_terms: list[str]
+    explanation: str
+
+
+class ProblemEvidenceMapResponse(ProblemSchema):
+    problem_id: uuid.UUID
+    problem_version: int
+    status: Literal["ready", "no_validated_evidence"]
+    query_summary: str
+    items: list[ProblemEvidenceMapItem]
