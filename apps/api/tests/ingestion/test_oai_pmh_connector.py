@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 from pci.ingestion.connectors.oai_pmh import OaiPmhConnector
@@ -159,12 +161,54 @@ async def test_oai_connector_retries_transient_http_errors(httpx_mock) -> None:
     records = [
         record
         async for record in OaiPmhConnector(
-            "https://repo.example/oai", max_retries=1
+            "https://repo.example/oai", max_retries=1, retry_base_delay_seconds=0
         ).harvest(None)
     ]
 
     assert [record.source_identifier for record in records] == ["oai:repo:2"]
     assert len(httpx_mock.get_requests()) == 2
+
+
+@pytest.mark.asyncio
+async def test_oai_connector_throttles_between_resumption_pages(
+    httpx_mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleep = AsyncMock()
+    monkeypatch.setattr("pci.ingestion.connectors.oai_pmh.asyncio.sleep", sleep)
+    httpx_mock.add_response(text=first_oai_page_with_token("next-page"))
+    httpx_mock.add_response(text=second_oai_page_without_token())
+
+    records = [
+        record
+        async for record in OaiPmhConnector(
+            "https://repo.example/oai", request_interval_seconds=2
+        ).harvest(None)
+    ]
+
+    assert len(records) == 2
+    sleep.assert_awaited_once_with(2)
+
+
+@pytest.mark.asyncio
+async def test_oai_connector_retries_repository_rate_limit_with_backoff(
+    httpx_mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleep = AsyncMock()
+    monkeypatch.setattr("pci.ingestion.connectors.oai_pmh.asyncio.sleep", sleep)
+    httpx_mock.add_response(status_code=403)
+    httpx_mock.add_response(text=second_oai_page_without_token())
+
+    records = [
+        record
+        async for record in OaiPmhConnector(
+            "https://repo.example/oai",
+            max_retries=1,
+            retry_base_delay_seconds=15,
+        ).harvest(None)
+    ]
+
+    assert [record.source_identifier for record in records] == ["oai:repo:2"]
+    sleep.assert_awaited_once_with(15)
 
 
 @pytest.mark.asyncio

@@ -63,11 +63,15 @@ def resolve_connector(source: Source) -> SourceConnector:
         set_spec = str(raw_set_spec) if raw_set_spec else None
         timeout = float(schedule.get("timeout", 30.0))
         max_retries = int(schedule.get("max_retries", 2))
+        request_interval_seconds = float(schedule.get("request_interval_seconds", 0.0))
+        retry_base_delay_seconds = float(schedule.get("retry_base_delay_seconds", 0.0))
         return OaiPmhConnector(
             source.base_url,
             metadata_prefix=metadata_prefix,
             set_spec=set_spec,
             timeout=timeout,
             max_retries=max_retries,
+            request_interval_seconds=request_interval_seconds,
+            retry_base_delay_seconds=retry_base_delay_seconds,
         )
     raise ValueError(f"unsupported connector type: {source.connector_type}")

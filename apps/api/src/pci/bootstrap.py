@@ -43,7 +43,9 @@ def ensure_ufpe_source(session: Session, config: UfpeSourceConfig) -> Source:
         "analysis_year_end": config.analysis_year_end,
         "current_year": config.current_year,
         "timeout": 30.0,
-        "max_retries": 2,
+        "max_retries": 5,
+        "request_interval_seconds": 2.0,
+        "retry_base_delay_seconds": 15.0,
     }
     session.flush()
     return source

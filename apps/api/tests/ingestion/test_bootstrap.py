@@ -31,5 +31,7 @@ def test_ufpe_source_bootstrap_is_idempotent_and_preserves_the_approved_corpus(
         "analysis_year_end": 2025,
         "current_year": 2026,
         "timeout": 30.0,
-        "max_retries": 2,
+        "max_retries": 5,
+        "request_interval_seconds": 2.0,
+        "retry_base_delay_seconds": 15.0,
     }

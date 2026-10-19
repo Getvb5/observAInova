@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 from xml.etree import ElementTree
@@ -8,7 +9,8 @@ from pci.ingestion.contracts import HarvestedRecord
 
 OAI_NAMESPACE = "http://www.openarchives.org/OAI/2.0/"
 OAI = f"{{{OAI_NAMESPACE}}}"
-TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+TRANSIENT_STATUSES = frozenset({403, 408, 429, 500, 502, 503, 504})
+DEFAULT_USER_AGENT = "ObservAInova/0.1 (scientific metadata harvester)"
 
 
 class OaiPmhConnector:
@@ -20,18 +22,30 @@ class OaiPmhConnector:
         set_spec: str | None = None,
         timeout: float = 30.0,
         max_retries: int = 2,
+        request_interval_seconds: float = 0.0,
+        retry_base_delay_seconds: float = 0.0,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries cannot be negative")
+        if request_interval_seconds < 0:
+            raise ValueError("request_interval_seconds cannot be negative")
+        if retry_base_delay_seconds < 0:
+            raise ValueError("retry_base_delay_seconds cannot be negative")
         self.base_url = base_url
         self.metadata_prefix = metadata_prefix
         self.set_spec = set_spec
         self.timeout = timeout
         self.max_retries = max_retries
+        self.request_interval_seconds = request_interval_seconds
+        self.retry_base_delay_seconds = retry_base_delay_seconds
 
     async def harvest(self, cursor: str | None) -> AsyncIterator[HarvestedRecord]:
         token = cursor
-        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+        async with httpx.AsyncClient(
+            timeout=self.timeout,
+            trust_env=False,
+            headers={"User-Agent": DEFAULT_USER_AGENT},
+        ) as client:
             while True:
                 params = {"verb": "ListRecords"}
                 if token is None:
@@ -51,6 +65,7 @@ class OaiPmhConnector:
                 token = _text(token_element)
                 if token is None:
                     return
+                await asyncio.sleep(self.request_interval_seconds)
 
     async def _request_with_retry(
         self, client: httpx.AsyncClient, params: dict[str, str]
@@ -61,11 +76,14 @@ class OaiPmhConnector:
             except httpx.TransportError:
                 if attempt == self.max_retries:
                     raise
+                await asyncio.sleep(self.retry_base_delay_seconds * (2**attempt))
                 continue
 
-            if response.status_code not in TRANSIENT_STATUSES or attempt == self.max_retries:
-                response.raise_for_status()
-                return response
+            if response.status_code in TRANSIENT_STATUSES and attempt < self.max_retries:
+                await asyncio.sleep(_retry_delay(response, self.retry_base_delay_seconds, attempt))
+                continue
+            response.raise_for_status()
+            return response
 
         raise RuntimeError("unreachable retry state")
 
@@ -128,6 +146,16 @@ class OaiPmhConnector:
 def _set_alias(payload: dict[str, Any], name: str, values: list[str] | None) -> None:
     if values:
         payload[name] = values[0] if len(values) == 1 else values
+
+
+def _retry_delay(response: httpx.Response, base_delay: float, attempt: int) -> float:
+    raw_retry_after = response.headers.get("Retry-After")
+    if raw_retry_after is not None:
+        try:
+            return max(float(str(raw_retry_after)), 0.0)
+        except ValueError:
+            pass
+    return base_delay * float(2**attempt)
 
 
 def _text(element: ElementTree.Element | None) -> str | None:
