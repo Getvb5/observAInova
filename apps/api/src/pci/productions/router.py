@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -7,6 +7,7 @@ from pci.api_dependencies import SessionDependency
 from pci.models.enums import ProductionType, TerritoryRelation
 from pci.productions.repository import ProductionFilters
 from pci.productions.schemas import PublicProductionDetail, PublicProductionPage
+from pci.productions.search import SearchPage, search_productions
 from pci.productions.service import (
     get_public_production,
     list_public_productions,
@@ -40,6 +41,32 @@ def list_productions(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/search", response_model=SearchPage)
+def search(
+    session: SessionDependency,
+    q: Annotated[str, Query(min_length=2, max_length=300)],
+    institution: Annotated[str | None, Query(max_length=255)] = None,
+    production_type: ProductionTypeQuery = None,
+    publication_year: PublicationYearQuery = None,
+    sort: Literal["relevance", "recent"] = "relevance",
+    page: PageQuery = 1,
+    page_size: PageSizeQuery = 10,
+) -> SearchPage:
+    try:
+        return search_productions(
+            session,
+            q,
+            institution=institution,
+            production_type=production_type,
+            publication_year=publication_year,
+            sort=sort,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get("/{production_id}", response_model=PublicProductionDetail)

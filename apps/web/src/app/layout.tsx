@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ObservAInova — Ciência para problemas públicos",
   description:
-    "Ecossistema de interação que conecta problemas públicos a contribuições científicas validadas.",
+    "Busque teses, dissertações e contribuições científicas de Pernambuco a partir de uma expressão.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

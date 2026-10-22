@@ -40,6 +40,12 @@ def get_public_production(
     record = repository.get_public_production(session, production_id)
     if record is None:
         return None
+    return public_production_detail(record)
+
+
+def public_production_detail(
+    record: repository.PublicProductionRecord,
+) -> PublicProductionDetail:
     version = record.version
     summary = _summary(record)
     return PublicProductionDetail(
@@ -70,9 +76,7 @@ def _summary(record: repository.PublicProductionRecord) -> PublicProductionSumma
             code=record.source.code if record.source is not None else None,
             name=record.source.name if record.source is not None else None,
             source_identifier=(
-                record.raw_record.source_identifier
-                if record.raw_record is not None
-                else None
+                record.raw_record.source_identifier if record.raw_record is not None else None
             ),
             source_url=version.source_url,
             access_status="available" if access_available else "unavailable",
@@ -100,9 +104,7 @@ def _missing_fields(report: dict[str, Any] | None) -> list[str]:
         return []
     newly_collected_fields = {"academic_program", "knowledge_areas"}
     return [
-        field
-        for field in value
-        if isinstance(field, str) and field not in newly_collected_fields
+        field for field in value if isinstance(field, str) and field not in newly_collected_fields
     ]
 
 

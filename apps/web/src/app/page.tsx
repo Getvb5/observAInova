@@ -1,5 +1,5 @@
-import { ProblemAssistant } from "@/components/problem/ProblemAssistant";
+import { SearchExperience } from "@/components/search/SearchExperience";
 
 export default function Home() {
-  return <ProblemAssistant />;
+  return <SearchExperience />;
 }
