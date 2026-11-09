@@ -1,5 +1,36 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/answers", route => route.fulfill({ json: {
+    query: "segurança do paciente", status: "unavailable", total_matches: 1,
+    message: "A síntese científica ainda não está ativada.", sources: [], analysis: null,
+    validation_status: "automated_unreviewed",
+  } }));
+});
+
+test("a problem receives a preliminary answer with a clickable source excerpt", async ({ page }) => {
+  const statement = { text: "A pesquisa sugere examinar as condições locais antes de aplicar a proposta.", basis: "inference", citations: [{ excerpt_id: "S1-E1", quote: "Este trecho é sintético e exclusivo do teste da interface." }] };
+  await page.route("**/api/v1/productions/search?**", route => route.fulfill({ json: {
+    query: "saneamento", items: [], total: 0, page: 1, page_size: 10, facets: { institutions: [], years: [] },
+  } }));
+  await page.route("**/api/v1/answers", route => route.fulfill({ json: {
+    query: "saneamento", status: "ready", total_matches: 1, validation_status: "automated_unreviewed",
+    message: "Síntese automática preliminar, sem revisão humana.",
+    analysis: { outcome: "conditional", context: [statement], feasibility: [statement], pathways: [statement], potentials: [], limitations: [statement] },
+    sources: [{ id: "S1", title: "Pesquisa sintética para teste", authors: ["Autoria de teste"], year: 2023,
+      url: "https://repository.example/item/1", reading_scope: "abstract_only",
+      excerpts: [{ id: "S1-E1", text: "Este trecho é sintético e exclusivo do teste da interface.", page: null }] }],
+  } }));
+  await page.goto("/");
+  await page.getByRole("searchbox").fill("saneamento");
+  await page.getByRole("searchbox").press("Enter");
+  await expect(page.getByRole("heading", { name: "É possível?" })).toBeVisible();
+  await page.getByRole("link", { name: "Conferir trecho S1-E1" }).first().click();
+  await expect(page.locator("#answer-S1-E1 blockquote")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 const result = {
   query: "segurança do paciente", total: 1, page: 1, page_size: 10,
   facets: { institutions: ["Instituição de teste"], years: [2023] },
@@ -23,8 +54,9 @@ test("one expression opens results; filters refine without a questionnaire", asy
   await page.getByRole("searchbox").fill("segurança do paciente");
   await page.getByRole("searchbox").press("Enter");
   await expect(page.getByRole("heading", { name: result.items[0].title })).toBeVisible();
-  expect(requests).toHaveLength(1);
-  expect(requests[0]).toContain("/productions/search?");
+  expect(requests).toHaveLength(2);
+  expect(requests.some(url => url.includes("/productions/search?"))).toBe(true);
+  expect(requests.some(url => url.endsWith("/answers"))).toBe(true);
   await expect(page.getByRole("button", { name: "Confirmar formulação" })).toHaveCount(0);
   await expect(page.getByText("Interpretação científica pendente")).toBeVisible();
   await expect(page.getByRole("link", { name: /acessar fonte/i })).toHaveAttribute("href", "https://repository.example/item/1");

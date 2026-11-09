@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pci.answers.router import router as answers_router
 from pci.problems.router import router as problems_router
 from pci.productions.router import router as productions_router
 from pci.routers.internal_contributions import router as internal_contributions_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Problem-Token"],
     )
     app.include_router(productions_router, prefix="/api/v1")
+    app.include_router(answers_router, prefix="/api/v1")
     app.include_router(problems_router, prefix="/api/v1")
     app.include_router(internal_contributions_router, prefix="/api/v1")
     app.include_router(public_contributions_router, prefix="/api/v1")

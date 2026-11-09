@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { searchParameters, searchProductions } from "@/lib/search-api";
 import type { SearchPage, SearchRequest, SearchResult } from "@/lib/search-api";
+import { ResearchAnswer } from "@/components/search/ResearchAnswer";
 
 const defaultFilters = { institution: "", type: "", publication_year: "", sort: "relevance" as const, page: 1 };
 const examples = ["Segurança do paciente", "Saneamento rural", "Gestão de resíduos"];
@@ -126,7 +127,7 @@ export function SearchExperience() {
       <section className="search-hero" aria-labelledby="search-heading">
         <p className="eyebrow">Ciência de Pernambuco ao seu alcance</p>
         <h1 id="search-heading">Uma busca.<br /><span>Novas possibilidades.</span></h1>
-        <p className="search-hero__intro">Encontre teses, dissertações e contribuições científicas a partir de um problema, tema ou expressão.</p>
+        <p className="search-hero__intro">Descreva um problema público para encontrar pesquisas, examinar caminhos e conhecer seus potenciais e limites.</p>
         <form className="expression-form" role="search" onSubmit={event => { event.preventDefault(); submit(expression); }}>
           <label className="sr-only" htmlFor="search-expression">Expressão de busca</label>
           <div className="expression-field">
@@ -139,6 +140,7 @@ export function SearchExperience() {
         {!applied && <p className="search-corpus">Teses e dissertações · Instituições públicas de Pernambuco · 2016–2025</p>}
       </section>
 
+      {applied && <ResearchAnswer request={applied} />}
       {applied && <section className="search-results-region" aria-labelledby="results-heading" aria-busy={loading}>
         <div className="search-results-heading">
           <div><p className="eyebrow">Conhecimento para explorar</p><h2 id="results-heading" ref={resultsTitle} tabIndex={-1}>Resultados da busca</h2></div>
